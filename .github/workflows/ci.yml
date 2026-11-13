@@ -162,6 +162,9 @@ jobs:
           path: |
             artifacts/AirBridge-Setup.exe
             artifacts/AirBridge.msi
+            artifacts/AirBridge-User-Setup.exe
+            artifacts/AirBridge-User.msi
+            artifacts/AirBridge-Portable.zip
             artifacts/qa/**/*.json
             artifacts/qa/**/*.log
             artifacts/qa/**/*.trx

@@ -8,7 +8,11 @@ public static class RuntimeProfile
 {
     public const string DataDirectoryVariable = "AIRBRIDGE_DATA_DIR";
     public const string DefaultCredentialTarget = "AirBridge/OpenAI API Key";
+    /// <summary>A file with this name beside the executable keeps the profile inside the app folder.</summary>
+    public const string PortableMarkerFileName = "AirBridge.portable";
+    public const string PortableDataDirectoryName = "Data";
     public static string RunId { get; } = Environment.GetEnvironmentVariable("AIRBRIDGE_RUN_ID") ?? Guid.NewGuid().ToString("N");
+    public static bool IsPortable { get; private set; }
     public static bool IsIsolated => !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(DataDirectoryVariable));
     public static string DataDirectory => ResolveDataDirectory(Environment.GetEnvironmentVariable(DataDirectoryVariable));
     public static string CredentialTarget => ResolveCredentialTarget(Environment.GetEnvironmentVariable(DataDirectoryVariable));
@@ -27,11 +31,33 @@ public static class RuntimeProfile
         return $"AirBridge/Profiles/{hash}/OpenAI API Key";
     }
 
-    public static void Configure(string? directory, bool requireIsolatedProfile = false)
+    /// <summary>Returns the portable profile directory when the marker file sits beside the executable.</summary>
+    public static string? ResolvePortableDirectory(string applicationDirectory) =>
+        File.Exists(Path.Combine(applicationDirectory, PortableMarkerFileName))
+            ? Path.GetFullPath(Path.Combine(applicationDirectory, PortableDataDirectoryName))
+            : null;
+
+    /// <summary>True when the app runs from the per-user installer's location (%LOCALAPPDATA%\Programs\AirBridge).</summary>
+    public static bool IsPerUserInstall => IsPerUserInstallDirectory(AppContext.BaseDirectory);
+
+    public static bool IsPerUserInstallDirectory(string applicationDirectory, string? localApplicationData = null)
+    {
+        var expected = Path.GetFullPath(Path.Combine(
+            localApplicationData ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "AirBridge"));
+        return string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(applicationDirectory)),
+            Path.TrimEndingDirectorySeparator(expected), StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static void Configure(string? directory, bool requireIsolatedProfile = false, string? applicationDirectory = null)
     {
         var configured = directory ?? Environment.GetEnvironmentVariable(DataDirectoryVariable);
         if (string.IsNullOrWhiteSpace(configured) && requireIsolatedProfile)
             configured = Path.Combine(Path.GetTempPath(), "AirBridge", "qa", Guid.NewGuid().ToString("N"));
+        if (string.IsNullOrWhiteSpace(configured) && ResolvePortableDirectory(applicationDirectory ?? AppContext.BaseDirectory) is { } portable)
+        {
+            configured = portable;
+            IsPortable = true;
+        }
         if (!string.IsNullOrWhiteSpace(configured))
             Environment.SetEnvironmentVariable(DataDirectoryVariable, ResolveDataDirectory(configured));
     }

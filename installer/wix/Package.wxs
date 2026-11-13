@@ -1,17 +1,42 @@
+<?ifndef InstallScope ?>
+<?define InstallScope = "perMachine" ?>
+<?endif ?>
+<?if $(var.InstallScope) = "perUser" ?>
+<!-- Per-user variant: no elevation; installs under %LOCALAPPDATA%\Programs and registers under HKCU. -->
+<?define UpgradeCode = "C0A4F5E2-6B1D-4C7A-9E83-2F5D7B1A4C60" ?>
+<?define ShortcutGuid = "8E2B6D41-3F7C-4A95-B0D8-61C4E9A27F13" ?>
+<?define RegistryRoot = "HKCU" ?>
+<?elseif $(var.InstallScope) = "perMachine" ?>
+<?define UpgradeCode = "2D36DA4C-F691-4482-9401-15B81645548E" ?>
+<?define ShortcutGuid = "54AF0786-B1F3-4E36-BE6C-40725EA49370" ?>
+<?define RegistryRoot = "HKLM" ?>
+<?else ?>
+<?error InstallScope must be perMachine or perUser. ?>
+<?endif ?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <!-- User profiles and Credential Manager entries are deliberately not installer components. -->
-  <Package Name="AirBridge for Windows" Manufacturer="AirBridge" Version="$(var.ProductVersion)" UpgradeCode="2D36DA4C-F691-4482-9401-15B81645548E" Scope="perMachine">
+  <Package Name="AirBridge for Windows" Manufacturer="AirBridge" Version="$(var.ProductVersion)" UpgradeCode="$(var.UpgradeCode)" Scope="$(var.InstallScope)">
     <MajorUpgrade DowngradeErrorMessage="A newer AirBridge version is already installed." />
     <MediaTemplate EmbedCab="yes" />
     <Icon Id="AirBridgeAppIcon" SourceFile="$(var.SourceRoot)\src\AirBridge.App\Assets\AirBridge.AppIcon.ico" />
+<?if $(var.InstallScope) = "perUser" ?>
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="UserProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="AirBridge">
+          <Files Include="$(var.SourceRoot)\artifacts\publish\**" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+<?else ?>
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="AirBridge">
         <Files Include="$(var.SourceRoot)\artifacts\publish\**" />
       </Directory>
     </StandardDirectory>
+<?endif ?>
     <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="ApplicationProgramsFolder" Name="AirBridge">
-        <Component Id="ApplicationShortcut" Guid="54AF0786-B1F3-4E36-BE6C-40725EA49370">
+        <Component Id="ApplicationShortcut" Guid="$(var.ShortcutGuid)">
           <Shortcut Id="AirBridgeStartMenuShortcut"
                     Name="AirBridge"
                     Description="Stream Windows audio to AirPlay speakers"
@@ -19,7 +44,10 @@
                     WorkingDirectory="INSTALLFOLDER"
                     Icon="AirBridgeAppIcon" />
           <RemoveFolder Id="RemoveApplicationProgramsFolder" On="uninstall" />
-          <RegistryValue Root="HKLM"
+<?if $(var.InstallScope) = "perUser" ?>
+          <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+<?endif ?>
+          <RegistryValue Root="$(var.RegistryRoot)"
                          Key="Software\AirBridge"
                          Name="StartMenuShortcut"
                          Type="integer"

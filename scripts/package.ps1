@@ -7,6 +7,10 @@ $python = Join-Path $script:AirBridgeRoot '.venv\Scripts\python.exe'
 $publish = Join-Path $script:AirBridgeRoot 'artifacts\publish'
 $raopPublish = Join-Path $publish 'RaopHost'
 $installer = Join-Path $script:AirBridgeRoot 'artifacts\AirBridge-Setup.exe'
+$userMsi = Join-Path $script:AirBridgeRoot 'artifacts\AirBridge-User.msi'
+$userInstaller = Join-Path $script:AirBridgeRoot 'artifacts\AirBridge-User-Setup.exe'
+$portableStage = Join-Path $script:AirBridgeRoot 'artifacts\portable-stage'
+$portableZip = Join-Path $script:AirBridgeRoot 'artifacts\AirBridge-Portable.zip'
 $toolManifest = Join-Path $script:AirBridgeRoot '.config\dotnet-tools.json'
 $previousReleaseVersion = $env:AIRBRIDGE_RELEASE_VERSION
 
@@ -55,13 +59,31 @@ try {
     $sourceDefine = 'SourceRoot=' + $script:AirBridgeRoot
     Invoke-PackageCheck 'msi-build' 'dotnet' @('wix', 'build', (Join-Path $script:AirBridgeRoot 'installer\wix\Package.wxs'), '-d', $sourceDefine, '-d', $versionDefine, '-arch', 'x64', '-out', (Join-Path $script:AirBridgeRoot 'artifacts\AirBridge.msi'))
     Invoke-PackageCheck 'installer-build' 'dotnet' @('wix', 'build', (Join-Path $script:AirBridgeRoot 'installer\wix\Bundle.wxs'), '-d', $sourceDefine, '-d', $versionDefine, '-arch', 'x64', '-ext', $wixExtension, '-out', $installer)
-    $run.artifacts = @((Join-Path $script:AirBridgeRoot 'artifacts\AirBridge.msi'), $installer, $publish)
+    # Per-user installer: same payload, installs under %LOCALAPPDATA%\Programs and registers under HKCU, so it needs no elevation.
+    $userScope = 'InstallScope=perUser'
+    Invoke-PackageCheck 'msi-user-build' 'dotnet' @('wix', 'build', (Join-Path $script:AirBridgeRoot 'installer\wix\Package.wxs'), '-d', $sourceDefine, '-d', $versionDefine, '-d', $userScope, '-arch', 'x64', '-out', $userMsi)
+    Invoke-PackageCheck 'installer-user-build' 'dotnet' @('wix', 'build', (Join-Path $script:AirBridgeRoot 'installer\wix\Bundle.wxs'), '-d', $sourceDefine, '-d', $versionDefine, '-d', $userScope, '-arch', 'x64', '-ext', $wixExtension, '-out', $userInstaller)
+    # Portable build: same payload plus a marker that keeps the profile in .\Data. No installer, no elevation.
+    # The marker is added to a staged copy only, so the MSI payload never redirects an installed profile into Program Files.
+    foreach ($path in @($portableStage, $portableZip)) {
+        if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force }
+    }
+    $portableRoot = Join-Path $portableStage 'AirBridge'
+    New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
+    Copy-Item -Path (Join-Path $publish '*') -Destination $portableRoot -Recurse -Force
+    Set-Content -LiteralPath (Join-Path $portableRoot 'AirBridge.portable') -Encoding ascii -Value 'Settings, logs and pairings are stored in the Data folder beside AirBridge.App.exe. Delete this file to use the per-user profile instead.'
+    Compress-Archive -Path $portableRoot -DestinationPath $portableZip -CompressionLevel Optimal
+    Remove-Item -LiteralPath $portableStage -Recurse -Force
+    $run.checks.Add([ordered]@{ name = 'portable-zip'; status = 'passed'; path = $portableZip }) | Out-Null
+    $run.artifacts = @((Join-Path $script:AirBridgeRoot 'artifacts\AirBridge.msi'), $installer, $userMsi, $userInstaller, $portableZip, $publish)
     $run.artifactHashes = @()
-    foreach ($artifact in @((Join-Path $script:AirBridgeRoot 'artifacts\AirBridge.msi'), $installer, (Join-Path $raopPublish 'AirBridge.RaopHost.exe'))) {
+    foreach ($artifact in @((Join-Path $script:AirBridgeRoot 'artifacts\AirBridge.msi'), $installer, $userMsi, $userInstaller, $portableZip, (Join-Path $raopPublish 'AirBridge.RaopHost.exe'))) {
         $run.artifactHashes += [ordered]@{ path = $artifact; bytes = (Get-Item -LiteralPath $artifact).Length; sha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant() }
     }
     Add-AirBridgeSkippedCheck $run 'install-upgrade-uninstall' 'Build and host ping do not prove installation; run on a disposable Windows VM.'
     Write-Host "Installer: $installer"
+    Write-Host "Per-user installer: $userInstaller"
+    Write-Host "Portable: $portableZip"
 }
 catch { $run.checks.Add([ordered]@{ name = 'package'; status = 'failed'; error = $_.Exception.Message }) | Out-Null }
 finally { $env:AIRBRIDGE_RELEASE_VERSION = $previousReleaseVersion }

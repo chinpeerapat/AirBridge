@@ -13,7 +13,7 @@ public sealed partial class MainForm
     private string _updateMessage = "Check for a newer version of AirBridge.";
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     internal string? PendingUpdateInstaller { get; private set; }
-    private bool UpdatesAllowed => !IsTestSession && !RuntimeProfile.IsIsolated;
+    private bool UpdatesAllowed => !IsTestSession && !RuntimeProfile.IsIsolated && !RuntimeProfile.IsPerUserInstall;
 
     private void StartUpdateChecks()
     {
@@ -31,7 +31,10 @@ public sealed partial class MainForm
     }
 
     private void RefreshUpdateStatus() => _openSettings?.SetUpdateStatus(
-        UpdatesAllowed ? _updateMessage : "Updates are disabled in development and fixture sessions.",
+        UpdatesAllowed ? _updateMessage
+            : RuntimeProfile.IsPortable ? "This is a portable copy. Download the newest AirBridge-Portable.zip from the release notes page and replace this folder's files, keeping the Data folder."
+            : RuntimeProfile.IsPerUserInstall ? "This copy is installed for the current user only. Download the newest AirBridge-User-Setup.exe from the release notes page and run it; your settings are kept."
+            : "Updates are disabled in development and fixture sessions.",
         _updateBusy || !UpdatesAllowed, _availableUpdate is not null);
 
     private async Task CheckUpdatesAsync(bool notify = false)

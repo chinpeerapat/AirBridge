@@ -23,6 +23,33 @@ public sealed class RuntimeProfileTests
     }
 
     [Fact]
+    public void PortableMarkerKeepsProfileBesideTheApplication()
+    {
+        var app = Path.Combine(Path.GetTempPath(), "airbridge-portable-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(app);
+        try
+        {
+            Assert.Null(RuntimeProfile.ResolvePortableDirectory(app));
+            File.WriteAllText(Path.Combine(app, RuntimeProfile.PortableMarkerFileName), string.Empty);
+            var data = RuntimeProfile.ResolvePortableDirectory(app);
+            Assert.Equal(Path.Combine(app, "Data"), data);
+            Assert.NotEqual(RuntimeProfile.DefaultCredentialTarget, RuntimeProfile.ResolveCredentialTarget(data));
+        }
+        finally { Directory.Delete(app, true); }
+    }
+
+    [Fact]
+    public void PerUserInstallIsRecognisedOnlyInItsInstallFolder()
+    {
+        var localAppData = Path.Combine(Path.GetTempPath(), "airbridge-local");
+        var installed = Path.Combine(localAppData, "Programs", "AirBridge");
+        Assert.True(RuntimeProfile.IsPerUserInstallDirectory(installed + Path.DirectorySeparatorChar, localAppData));
+        Assert.True(RuntimeProfile.IsPerUserInstallDirectory(installed.ToUpperInvariant(), localAppData));
+        Assert.False(RuntimeProfile.IsPerUserInstallDirectory(Path.Combine(localAppData, "Programs", "Other"), localAppData));
+        Assert.False(RuntimeProfile.IsPerUserInstallDirectory(Path.Combine(Path.GetTempPath(), "Program Files", "AirBridge"), localAppData));
+    }
+
+    [Fact]
     public void ExplicitSettingsPathsStayIndependentOfProfiles()
     {
         var firstPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "settings.json");

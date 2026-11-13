@@ -135,7 +135,11 @@ dotnet test AirBridge.sln -c Release --filter "Category=Hardware"
 
 Verification saves run-scoped JSON reports, logs, distinct TRX files, and fixture evidence under `artifacts\qa`. Hardware, acoustic output, paid model evals, native UI interaction, and installer lifecycle checks are reported separately. CI runs the same verification command and retains evidence on failure.
 
-Packaging runs the shared offline verification gate, builds `artifacts\AirBridge-Setup.exe`, `artifacts\AirBridge.msi`, and a portable application under `artifacts\publish`, then verifies the bundled RAOP host handshake. A manual CI workflow can build the package. Install, upgrade, and uninstall testing still require a disposable Windows VM.
+Packaging runs the shared offline verification gate, builds `artifacts\AirBridge-Setup.exe`, `artifacts\AirBridge.msi`, and a portable application under `artifacts\publish`, then verifies the bundled RAOP host handshake.
+
+`artifacts\AirBridge-User-Setup.exe` (and `AirBridge-User.msi`) installs for the current user only, without administrator rights: the app goes to `%LOCALAPPDATA%\Programs\AirBridge`, the Start menu entry and Apps list registration are per-user, and the profile stays in `%LOCALAPPDATA%\AirBridge` as usual. It is a separate product from the per-machine `AirBridge-Setup.exe`, so the two do not upgrade each other; uninstall one before switching. Per-user installs do not self-update, because the in-app updater downloads the per-machine setup; run a newer `AirBridge-User-Setup.exe` to upgrade.
+
+`artifacts\AirBridge-Portable.zip` runs without installation or administrator rights: extract it anywhere you can write (for example a USB drive or `Documents`) and start `AirBridge.App.exe`. An `AirBridge.portable` marker beside the executable keeps settings, logs and speaker pairings in the adjacent `Data` folder instead of `%LOCALAPPDATA%\AirBridge`. The OpenAI API key still lives in the current user's Windows Credential Manager, under a target specific to that folder, so it must be re-entered on another PC or after moving the folder. Portable copies do not self-update; replace the program files from a newer zip and keep `Data`. `--data-dir` and `AIRBRIDGE_DATA_DIR` take precedence over the marker. A manual CI workflow can build the package. Install, upgrade, and uninstall testing still require a disposable Windows VM.
 
 ## Acknowledgments
 

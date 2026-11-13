@@ -1,16 +1,27 @@
+<?ifndef InstallScope ?>
+<?define InstallScope = "perMachine" ?>
+<?endif ?>
+<?if $(var.InstallScope) = "perUser" ?>
+<!-- Burn registers and runs per-user when every chained package is per-user, so this setup never prompts for elevation. -->
+<?define BundleUpgradeCode = "4B9E2C17-A85D-4F30-9C6E-D1B37A0F5E82" ?>
+<?define MsiName = "AirBridge-User.msi" ?>
+<?else ?>
+<?define BundleUpgradeCode = "7F1C28DF-D74A-4A5E-ACF8-416775882BDB" ?>
+<?define MsiName = "AirBridge.msi" ?>
+<?endif ?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
   <Bundle Name="AirBridge for Windows"
           Manufacturer="AirBridge"
           Version="$(var.ProductVersion)"
-          UpgradeCode="7F1C28DF-D74A-4A5E-ACF8-416775882BDB">
+          UpgradeCode="$(var.BundleUpgradeCode)">
     <BootstrapperApplication>
       <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense"
                                                LicenseUrl=""
                                                SuppressOptionsUI="yes" />
     </BootstrapperApplication>
     <Chain>
-      <MsiPackage SourceFile="$(var.SourceRoot)\artifacts\AirBridge.msi"
+      <MsiPackage SourceFile="$(var.SourceRoot)\artifacts\$(var.MsiName)"
                   Compressed="yes"
                   Vital="yes" />
     </Chain>
