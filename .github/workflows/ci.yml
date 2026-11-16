@@ -151,6 +151,13 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
+      - name: Prepare the pinned WiX tool on the disposable build runner
+        shell: powershell
+        run: |
+          dotnet tool restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet wix eula accept wix7
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build installer with shared release gate and host ping
         shell: powershell
         run: ./scripts/package.ps1 -OutputDirectory artifacts/qa/ci-package
